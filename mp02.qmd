@@ -831,25 +831,23 @@ growth_stats <- cbsa_data %>%
     composite_growth = mean(COMPOSITE_SCORE, na.rm=TRUE)
   )
 
-library(plotly)
+library(ggplot2)
 
-p <- ggplot(growth_stats, aes(
+ggplot(growth_stats, aes(
   x = composite_growth,
-  y = pop_growth,
-  text = paste0(
-    NAME,
-    "<br>Δ Pop: ", scales::comma(pop_growth),
-    "<br>Composite: ", round(composite_growth, 3)
-  )
+  y = pop_growth
 )) +
   geom_point(color = "steelblue") +
   labs(
     title = "Population Growth vs Housing Growth across CBSAs",
     x = "Mean Composite Housing Growth (Standardized)",
     y = "Population Growth (2009 to latest year)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
   )
-
-ggplotly(p, tooltip = "text")
 
 ```
 
@@ -888,30 +886,28 @@ ggplot(cbsa_full, aes(x = year, y = monthly_rent, color = above_avg_growth)) +
        x = "Year", y = "Average Monthly Rent",
        color = "Above Avg Housing Growth")
 
-library(plotly)
+library(ggplot2)
 
-p <- ggplot(summary_burden, aes(
+ggplot(summary_burden, aes(
   x = composite_growth,
   y = delta_rent,
   size = pop_growth,
-  color = above_avg_growth,
-  text = paste0(
-    "CBSA: ", NAME,
-    "<br>Δ Rent: ", round(delta_rent, 0),
-    "<br>Composite Growth: ", round(composite_growth, 3),
-    "<br>Pop Growth: ", scales::comma(pop_growth)
-  )
+  color = above_avg_growth
 )) +
   geom_point(alpha = 0.7) +
   labs(
     title = "Change in Rent vs Housing Growth",
     x = "Mean Housing Growth",
     y = "Change in Monthly Rent",
-    size = "Population Growth"
+    size = "Population Growth",
+    color = "Above Avg Growth"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank(),
+    legend.position = "right"
   )
-
-# Convert to interactive version with hover tooltips
-ggplotly(p, tooltip = "text")
 
 yimby_cbsas <- summary_burden %>%
   filter(
