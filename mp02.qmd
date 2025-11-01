@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-While NIMBYs fight to freeze neighborhoods in place, YIMBYs recognize that progress comes from building upward and outward. By analyzing national data on rent burden and housing growth, this project demonstrates that expanding supply truly makes housing more affordable. The results make a compelling case for embracing the YIMBY approach.
+While NIMBYs fight to freeze neighborhoods in place, YIMBYs recognize that progress comes from building upward and outward. By analyzing national data on rent burden and housing growth, this week's project demonstrates that expanding supply truly makes housing more affordable. The results make a compelling case for embracing the YIMBY approach.
 
 #### First, we will import data from the American Census Bureau
 
