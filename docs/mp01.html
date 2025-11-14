@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.7.33">
+<meta name="generator" content="quarto-1.7.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -71,7 +71,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-ea385d0e468b0dd5ea5bf0780b1290d9.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-b3aed8deb8408878d0e4e165d993d59e.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -118,9 +118,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <script src="site_libs/dt-core-1.13.6/js/jquery.dataTables.min.js"></script>
 
-<link href="site_libs/crosstalk-1.2.1/css/crosstalk.min.css" rel="stylesheet">
+<link href="site_libs/crosstalk-1.2.2/css/crosstalk.min.css" rel="stylesheet">
 
-<script src="site_libs/crosstalk-1.2.1/js/crosstalk.min.js"></script>
+<script src="site_libs/crosstalk-1.2.2/js/crosstalk.min.js"></script>
 
 
 
@@ -250,7 +250,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code># A tibble: 4 × 3
   category            show_title          total_hours
   &lt;chr&gt;               &lt;chr&gt;                     &lt;dbl&gt;
-1 Films (English)     KPop Demon Hunters    523700000
+1 Films (English)     KPop Demon Hunters    678200000
 2 Films (Non-English) Society of the Snow   235900000
 3 TV (English)        Stranger Things      2967980000
 4 TV (Non-English)    Squid Game           5048300000</code></pre>
@@ -394,7 +394,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code># A tibble: 45 × 5
    show_title             debut_week debut_rank best_rank most_recent_week_at_…¹
    &lt;chr&gt;                  &lt;date&gt;          &lt;dbl&gt;     &lt;dbl&gt; &lt;date&gt;                
- 1 KPop Demon Hunters     2025-06-22          6         1 2025-09-14            
+ 1 KPop Demon Hunters     2025-06-22          6         1 2025-10-12            
  2 Unknown Number: The H… 2025-08-31          4         1 2025-09-07            
  3 Plane                  2025-06-15          2         1 2025-06-22            
  4 The Wild Robot         2025-05-25          3         1 2025-06-01            
@@ -415,7 +415,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code># A tibble: 1 × 5
   show_title         debut_week debut_rank best_rank most_recent_week_at_best
   &lt;chr&gt;              &lt;date&gt;          &lt;dbl&gt;     &lt;dbl&gt; &lt;date&gt;                  
-1 KPop Demon Hunters 2025-06-22          6         1 2025-09-14              </code></pre>
+1 KPop Demon Hunters 2025-06-22          6         1 2025-10-12              </code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Count how many films climbed to #1 after debuting below #1</span></span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>num_climbed <span class="ot">&lt;-</span> <span class="fu">nrow</span>(films_that_climbed)</span>
@@ -551,8 +551,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning in inner_join(., GLOBAL_TOP_10 %&gt;% select(show_title, runtime, runtime, : Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 11 of `x` matches multiple rows in `y`.
-ℹ Row 22 of `y` matches multiple rows in `x`.
+ℹ Row 53 of `x` matches multiple rows in `y`.
+ℹ Row 111 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.</code></pre>
 </div>
@@ -579,30 +579,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
 <span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(total_hours_viewed))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
-<pre><code>Warning: There were 317 warnings in `summarise()`.
+<pre><code>Warning: There were 316 warnings in `summarise()`.
 The first warning was:
 ℹ In argument: `runtime_hours = max(runtime, na.rm = TRUE)`.
 ℹ In group 1: `show_title = "'83"` `category = "Films"`.
 Caused by warning in `max()`:
 ! no non-missing arguments to max; returning -Inf
-ℹ Run `dplyr::last_dplyr_warnings()` to see the 316 remaining warnings.</code></pre>
+ℹ Run `dplyr::last_dplyr_warnings()` to see the 315 remaining warnings.</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>india_summary</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code># A tibble: 786 × 6
+<pre><code># A tibble: 801 × 6
    show_title     category total_hours_viewed total_weeks_in_top10 runtime_hours
    &lt;chr&gt;          &lt;chr&gt;                 &lt;dbl&gt;                &lt;int&gt;         &lt;dbl&gt;
  1 Stranger Thin… TV              10576060000                   19       -Inf   
  2 Squid Game     TV               8644700000                   40          8.32
  3 Money Heist    TV               5398950000                   15          0   
- 4 Wednesday      TV               3717750000                   27          7.78
+ 4 Wednesday      TV               3948750000                   32          7.78
  5 Bridgerton     TV               3665980000                   17          8.5 
  6 Manifest       TV               2365870000                   17       -Inf   
  7 Ginny &amp; Georg… TV               2232200000                   10         10.6 
  8 The Witcher    TV               1958670000                   14          8   
  9 You            TV               1801700000                   14          8.45
 10 Sex Education  TV               1614820000                   12          8.1 
-# ℹ 776 more rows
+# ℹ 791 more rows
 # ℹ 1 more variable: est_views &lt;dbl&gt;</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>india_views_by_year</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -614,7 +614,7 @@ Caused by warning in `max()`:
 2  2022        33092540000           0
 3  2023        20614820000  2411800000
 4  2024        18266500000  4569200000
-5  2025        18319700000  4181300000</code></pre>
+5  2025        20167700000  4543000000</code></pre>
 </div>
 </div>
 <ul>
@@ -640,8 +640,8 @@ Caused by warning in `max()`:
 <span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Warning in inner_join(., GLOBAL_TOP_10 %&gt;% select(show_title, week, weekly_hours_viewed, : Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 19 of `x` matches multiple rows in `y`.
-ℹ Row 221 of `y` matches multiple rows in `x`.
+ℹ Row 80 of `x` matches multiple rows in `y`.
+ℹ Row 421 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.</code></pre>
 </div>
