@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Sample – STA 9750 Submission Material</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-b3aed8deb8408878d0e4e165d993d59e.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-fixed fullcontent quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">STA 9750 Submission Material</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Sample</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>if(!dir.exists(file.path(“data”, “mp02”))){ dir.create(file.path(“data”, “mp02”), showWarnings=FALSE, recursive=TRUE) }</p>
+<p>library &lt;- function(pkg){ ## Mask base::library() to automatically install packages if needed ## Masking is important here so downlit picks up packages and links ## to documentation pkg &lt;- as.character(substitute(pkg)) options(repos = c(CRAN = “https://cloud.r-project.org”)) if(!require(pkg, character.only=TRUE, quietly=TRUE)) install.packages(pkg) stopifnot(require(pkg, character.only=TRUE, quietly=TRUE)) }</p>
+<p>library(tidyverse) library(glue) library(readxl) library(tidycensus)</p>
+<p>get_acs_all_years &lt;- function(variable, geography=“cbsa”, start_year=2009, end_year=2023){ fname &lt;- glue(“{variable}<em>{geography}</em>{start_year}_{end_year}.csv”) fname &lt;- file.path(“data”, “mp02”, fname)</p>
+<pre><code>if(!file.exists(fname)){
+    YEARS &lt;- seq(start_year, end_year)
+    YEARS &lt;- YEARS[YEARS != 2020] # Drop 2020 - No survey (covid)
+    
+    ALL_DATA &lt;- map(YEARS, function(yy){
+        tidycensus::get_acs(geography, variable, year=yy, survey="acs1") |&gt;
+            mutate(year=yy) |&gt;
+            select(-moe, -variable) |&gt;
+            rename(!!variable := estimate)
+    }) |&gt; bind_rows()
+    
+    write_csv(ALL_DATA, fname)
+}
+
+read_csv(fname, show_col_types=FALSE)</code></pre>
+<p>}</p>
+<section id="household-income-12-month" class="level1">
+<h1>Household income (12 month)</h1>
+<p>INCOME &lt;- get_acs_all_years(“B19013_001”) |&gt; rename(household_income = B19013_001)</p>
+</section>
+<section id="monthly-rent" class="level1">
+<h1>Monthly rent</h1>
+<p>RENT &lt;- get_acs_all_years(“B25064_001”) |&gt; rename(monthly_rent = B25064_001)</p>
+</section>
+<section id="total-population" class="level1">
+<h1>Total population</h1>
+<p>POPULATION &lt;- get_acs_all_years(“B01003_001”) |&gt; rename(population = B01003_001)</p>
+</section>
+<section id="total-number-of-households" class="level1">
+<h1>Total number of households</h1>
+<p>HOUSEHOLDS &lt;- get_acs_all_years(“B11001_001”) |&gt; rename(households = B11001_001)</p>
+<p>get_building_permits &lt;- function(start_year = 2009, end_year = 2023){ fname &lt;- glue(“housing_units_{start_year}_{end_year}.csv”) fname &lt;- file.path(“data”, “mp02”, fname)</p>
+<pre><code>if(!file.exists(fname)){
+    HISTORICAL_YEARS &lt;- seq(start_year, 2018)
+    
+    HISTORICAL_DATA &lt;- map(HISTORICAL_YEARS, function(yy){
+        historical_url &lt;- glue("https://www.census.gov/construction/bps/txt/tb3u{yy}.txt")
+            
+        LINES &lt;- readLines(historical_url)[-c(1:11)]
+
+        CBSA_LINES &lt;- str_detect(LINES, "^[[:digit:]]")
+        CBSA &lt;- as.integer(str_sub(LINES[CBSA_LINES], 5, 10))
+
+        PERMIT_LINES &lt;- str_detect(str_sub(LINES, 48, 53), "[[:digit:]]")
+        PERMITS &lt;- as.integer(str_sub(LINES[PERMIT_LINES], 48, 53))
+        
+        data_frame(CBSA = CBSA,
+                   new_housing_units_permitted = PERMITS, 
+                   year = yy)
+    }) |&gt; bind_rows()
+    
+    CURRENT_YEARS &lt;- seq(2019, end_year)
+    
+    CURRENT_DATA &lt;- map(CURRENT_YEARS, function(yy){
+        current_url &lt;- glue("https://www.census.gov/construction/bps/xls/msaannual_{yy}99.xls")
+        
+        temp &lt;- tempfile()
+        
+        download.file(current_url, destfile = temp, mode="wb")
+        
+        fallback &lt;- function(.f1, .f2){
+            function(...){
+                tryCatch(.f1(...), 
+                         error=function(e) .f2(...))
+            }
+        }
+        
+        reader &lt;- fallback(read_xlsx, read_xls)
+        
+        reader(temp, skip=5) |&gt;
+            na.omit() |&gt;
+            select(CBSA, Total) |&gt;
+            mutate(year = yy) |&gt;
+            rename(new_housing_units_permitted = Total)
+    }) |&gt; bind_rows()
+    
+    ALL_DATA &lt;- rbind(HISTORICAL_DATA, CURRENT_DATA)
+    
+    write_csv(ALL_DATA, fname)
+    
+}
+
+read_csv(fname, show_col_types=FALSE)</code></pre>
+<p>}</p>
+<p>PERMITS &lt;- get_building_permits()</p>
+<p>library(httr2) library(rvest) get_bls_industry_codes &lt;- function(){ fname &lt;- file.path(“data”, “mp02”, “bls_industry_codes.csv”) library(dplyr) library(tidyr) library(readr)</p>
+<pre><code>if(!file.exists(fname)){
+    
+    resp &lt;- request("https://www.bls.gov") |&gt; 
+        req_url_path("cew", "classifications", "industry", "industry-titles.htm") |&gt;
+        req_headers(`User-Agent` = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0") |&gt; 
+        req_error(is_error = \(resp) FALSE) |&gt;
+        req_perform()
+    
+    resp_check_status(resp)
+    
+    naics_table &lt;- resp_body_html(resp) |&gt;
+        html_element("#naics_titles") |&gt; 
+        html_table() |&gt;
+        mutate(title = str_trim(str_remove(str_remove(`Industry Title`, Code), "NAICS"))) |&gt;
+        select(-`Industry Title`) |&gt;
+        mutate(depth = if_else(nchar(Code) &lt;= 5, nchar(Code) - 1, NA)) |&gt;
+        filter(!is.na(depth))
+    
+    # These were looked up manually on bls.gov after finding 
+    # they were presented as ranges. Since there are only three
+    # it was easier to manually handle than to special-case everything else
+    naics_missing &lt;- tibble::tribble(
+        ~Code, ~title, ~depth, 
+        "31", "Manufacturing", 1,
+        "32", "Manufacturing", 1,
+        "33", "Manufacturing", 1,
+        "44", "Retail", 1, 
+        "45", "Retail", 1,
+        "48", "Transportation and Warehousing", 1, 
+        "49", "Transportation and Warehousing", 1
+    )
+    
+    naics_table &lt;- bind_rows(naics_table, naics_missing)
+    
+    naics_table &lt;- naics_table |&gt; 
+        filter(depth == 4) |&gt; 
+        rename(level4_title=title) |&gt; 
+        mutate(level1_code = str_sub(Code, end=2), 
+               level2_code = str_sub(Code, end=3), 
+               level3_code = str_sub(Code, end=4)) |&gt;
+        left_join(naics_table, join_by(level1_code == Code)) |&gt;
+        rename(level1_title=title) |&gt;
+        left_join(naics_table, join_by(level2_code == Code)) |&gt;
+        rename(level2_title=title) |&gt;
+        left_join(naics_table, join_by(level3_code == Code)) |&gt;
+        rename(level3_title=title) |&gt;
+        select(-starts_with("depth")) |&gt;
+        rename(level4_code = Code) |&gt;
+        select(level1_title, level2_title, level3_title, level4_title, 
+               level1_code,  level2_code,  level3_code,  level4_code) |&gt;
+        drop_na() |&gt;
+        mutate(across(contains("code"), as.integer))
+    
+    write_csv(naics_table, fname)
+}
+
+read_csv(fname, show_col_types=FALSE)</code></pre>
+<p>}</p>
+<p>INDUSTRY_CODES &lt;- get_bls_industry_codes()</p>
+<p>library(httr2) library(rvest) get_bls_qcew_annual_averages &lt;- function(start_year=2009, end_year=2023){ fname &lt;- glue(“bls_qcew_{start_year}_{end_year}.csv.gz”) fname &lt;- file.path(“data”, “mp02”, fname)</p>
+<pre><code>YEARS &lt;- seq(start_year, end_year)
+YEARS &lt;- YEARS[YEARS != 2020] # Drop Covid year to match ACS
+
+if(!file.exists(fname)){
+    ALL_DATA &lt;- map(YEARS, .progress=TRUE, possibly(function(yy){
+        fname_inner &lt;- file.path("data", "mp02", glue("{yy}_qcew_annual_singlefile.zip"))
+        
+        if(!file.exists(fname_inner)){
+            request("https://www.bls.gov") |&gt; 
+                req_url_path("cew", "data", "files", yy, "csv",
+                             glue("{yy}_annual_singlefile.zip")) |&gt;
+                req_headers(`User-Agent` = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0") |&gt; 
+                req_retry(max_tries=5) |&gt;
+                req_perform(fname_inner)
+        }
+        
+        if(file.info(fname_inner)$size &lt; 755e5){
+            warning(sQuote(fname_inner), "appears corrupted. Please delete and retry this step.")
+        }
+        
+        read_csv(fname_inner, 
+                 show_col_types=FALSE) |&gt; 
+            mutate(YEAR = yy) |&gt;
+            select(area_fips, 
+                   industry_code, 
+                   annual_avg_emplvl, 
+                   total_annual_wages, 
+                   YEAR) |&gt;
+            filter(nchar(industry_code) &lt;= 5, 
+                   str_starts(area_fips, "C")) |&gt;
+            filter(str_detect(industry_code, "-", negate=TRUE)) |&gt;
+            mutate(FIPS = area_fips, 
+                   INDUSTRY = as.integer(industry_code), 
+                   EMPLOYMENT = as.integer(annual_avg_emplvl), 
+                   TOTAL_WAGES = total_annual_wages) |&gt;
+            select(-area_fips, 
+                   -industry_code, 
+                   -annual_avg_emplvl, 
+                   -total_annual_wages) |&gt;
+            # 10 is a special value: "all industries" , so omit
+            filter(INDUSTRY != 10) |&gt; 
+            mutate(AVG_WAGE = TOTAL_WAGES / EMPLOYMENT)
+    })) |&gt; bind_rows()
+    
+    write_csv(ALL_DATA, fname)
+}
+
+ALL_DATA &lt;- read_csv(fname, show_col_types=FALSE)
+
+ALL_DATA_YEARS &lt;- unique(ALL_DATA$YEAR)
+
+YEARS_DIFF &lt;- setdiff(YEARS, ALL_DATA_YEARS)
+
+if(length(YEARS_DIFF) &gt; 0){
+    stop("Download failed for the following years: ", YEARS_DIFF, 
+         ". Please delete intermediate files and try again.")
+}
+
+ALL_DATA</code></pre>
+<p>}</p>
+<p>WAGES &lt;- get_bls_qcew_annual_averages()</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/CChan101\.github\.io\/STA9750-2025-FALL");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
