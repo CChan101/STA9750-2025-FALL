@@ -1,5 +1,5 @@
 ---
-title: "STA 9750 Miniproject 3"
+title: "STA 9750 Miniproject 4"
 format: html
 editor: visual
 ---
