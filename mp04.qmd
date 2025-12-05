@@ -1,11 +1,6 @@
 ---
-title: "STA 9750 Miniproject 4"
-format:
-  html:
-    code-fold: true         # enables expandable code chunks
-    code-tools: true        # adds show/hide buttons
-    code-summary: "Show code"  # text shown when collapsed
-    code-overflow: wrap
+title: "STA 9750 Miniproject 3"
+format: html
 editor: visual
 ---
 
