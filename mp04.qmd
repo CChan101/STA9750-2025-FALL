@@ -1,0 +1,1088 @@
+---
+title: "STA 9750 Miniproject 4"
+format:
+  html:
+    code-fold: true         # enables expandable code chunks
+    code-tools: true        # adds show/hide buttons
+    code-summary: "Show code"  # text shown when collapsed
+    code-overflow: wrap
+editor: visual
+---
+
+# **Mini-Project #04: Just the Fact(-Check)s, Ma’am!**
+
+In this project, we will investigate the accuracy and potential bias of Bureau of Labor Statistics (BLS) employment revisions following the controversial August 2025 firing of BLS Commissioner Dr. Erika McEntarfer by President Trump. The project examines over four decades of Current Employment Statistics (CES) data—from January 1979 through June 2025—to fact-check competing political claims about whether recent revisions to monthly jobs reports demonstrate systematic bias or statistical anomalies. By integrating web scraping techniques, data manipulation, exploratory analysis, and formal statistical inference, this report evaluates two specific claims made by public figures regarding BLS revision patterns. The analysis combines absolute employment levels with month-over-month revisions to assess whether observed patterns in revision magnitude, direction, and frequency represent meaningful departures from historical norms or fall within expected statistical variation.​
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| output-summary: "Show/hide results"
+#| output: false
+packageVersion("httr2")
+```
+
+## Task 1: Download CES Total Nonfarm
+
+First, we will use the httr2 and rvest libraries to scrape the BLS Data Finder Website and download the complete historical record of seasonally-adjusted Total Nonfarm Payroll employment levels from January 1979 to June 2025.
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| code-summary: "Download the CES Total Nonfarm Data"
+#| warning: false
+#| message: false
+library(httr2)
+library(rvest)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+# Step 1 & 2: Replicate the HTTP request
+# The BLS data retrieval system uses a POST request with form data
+# to specify the series, date range, and output format
+
+# Create the request
+req <- request("https://data.bls.gov/pdq/SurveyOutputServlet") |>
+  req_body_form(
+    series_id = "CES0000000001",
+    years_option = "specific_years",
+    from_year = "1979",
+    to_year = "2025",
+    periods_option = "specific_periods",
+    output_type = "column",
+    output_view = "data"
+  )
+
+# Execute the request
+resp <- req_perform(req)
+
+# Step 3 & 4: Parse the HTML and extract the table
+html <- resp_body_html(resp)
+
+#Find the table element
+payroll_table <- html |>
+  html_element("table#table0") |>
+  html_table()
+
+#print(payroll_table)
+
+# Step 5: Pivot the table into appropriate format
+# The table is typically in wide format with Year as first column
+# and months as subsequent columns
+
+payroll_long <- payroll_table |>
+  # keep only real months
+  filter(grepl("^M\\d{2}$", Period)) |>
+  mutate(
+    # turn "M01" -> 1, "M02" -> 2, etc.
+    month_num = as.integer(sub("M", "", Period)),
+    # build Date from Year + month
+    date = make_date(year = as.integer(Year),
+                     month = month_num,
+                     day = 1),
+    # numeric level
+    level = as.numeric(gsub(",", "", Value))
+  ) |>
+  select(date, level) |>
+  # restrict to requested range
+  filter(date >= as.Date("1979-01-01"),
+         date <= as.Date("2025-06-01")) |>
+  arrange(date)
+
+invisible(NULL)
+print(payroll_long)
+```
+
+## Task 2: Download CES Revisions Tables
+
+In Task 2, we then scrape the BLS CES Revisions webpage to download the first (original) and third (final) employment estimates for each month from January 1979 to June 2025, calculating the revision as the difference between these values.
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| warning: false
+#| message: false
+#| code-summary: "Download CES Revisions Tables"
+library(httr2)
+library(rvest)
+library(dplyr)
+library(lubridate)
+library(purrr)
+
+# Fetch the page
+html <- request("https://www.bls.gov/web/empsit/cesnaicsrev.htm") |>
+  req_user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") |>
+  req_perform() |>
+  resp_body_html()
+
+# Function to extract data for a single year
+extract_year_data <- function(year, page) {
+  table_id <- as.character(year)
+  
+  table_html <- page |>
+    html_element(paste0("#", table_id))
+  
+  if (is.na(table_html)) {
+    warning(paste("No table found for year", year))
+    return(NULL)
+  }
+  
+  table <- table_html |>
+    html_element("tbody") |>
+    html_table(header = FALSE)
+  
+  table <- table |> slice(1:12)
+  
+  result <- table |>
+    select(month = 1, year = 2, original = 3, final = 5) |>
+    mutate(
+      date = ym(paste(year, month)),
+      original = as.numeric(original),
+      final = as.numeric(final),
+      revision = final - original
+    ) |>
+    select(date, original, final, revision)
+  
+  return(result)
+}
+
+# Apply to all years and combine
+years <- 1979:2025
+ces_revisions <- map(years, ~extract_year_data(.x, html)) |>
+  list_rbind()
+
+# Filter through June 2025
+ces_revisions <- ces_revisions |>
+  filter(date <= ymd("2025-06-01"))
+
+print(ces_revisions)
+```
+
+## Task 3: Data Exploration and Visualization
+
+In Task 3, we join the employment levels and revision tables together and conduct comprehensive exploratory data analysis using both quantitative (dplyr) and visual (ggplot2) methods, answering the questions such as revisions over time and distribution of revisions.
+
+#### **Joining the initial tables**
+
+First, we join the two tables from Task 1 and 2. We can see the result down below!
+
+```{r}
+#| code-fold: true
+#| message: false
+#| warning: false
+#| code-summary: "Join payroll_long and ces_revisions"
+# ===== TASK 3: JOIN THE TABLES =====
+
+# Join the two datasets on date
+ces_combined <- payroll_long |>
+  left_join(ces_revisions, by = "date")
+
+# Check for any missing matches
+#cat("\nRows with missing revision data:", sum(is.na(ces_combined$revision)), "\n")
+#cat("Rows with missing level data:", sum(is.na(ces_combined$level)), "\n")
+
+
+# View the results
+print(ces_combined)
+```
+
+#### **Exploratory Data Analysis:**
+
+Let's conduct our exploratory data analysis, starting from the statistics!
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| output-summary: "Show/hide results"
+#| warning: false
+#| message: false
+#| code-summary: "Exploratory data analysis for statistics"
+# ===== TASK 3: DATA EXPLORATION =====
+
+library(ggplot2)
+
+# 1. Calculate month-over-month changes from the level data
+ces_combined <- ces_combined |>
+  arrange(date) |>
+  mutate(
+    # Calculate actual change in employment level
+    actual_change = level - lag(level)
+  )
+
+# 2. Basic summary statistics
+cat("Mean revision:", mean(ces_combined$revision, na.rm = TRUE), "\n")
+cat("Median revision:", median(ces_combined$revision, na.rm = TRUE), "\n")
+cat("SD of revisions:", sd(ces_combined$revision, na.rm = TRUE), "\n")
+cat("Min revision:", min(ces_combined$revision, na.rm = TRUE), "\n")
+cat("Max revision:", max(ces_combined$revision, na.rm = TRUE), "\n")
+
+# Percentage of positive vs negative revisions
+
+cat("Positive revisions:", 
+    sum(ces_combined$revision > 0, na.rm = TRUE), "\n")
+cat("Negative revisions:", 
+    sum(ces_combined$revision < 0, na.rm = TRUE), "\n")
+cat("Zero revisions:", 
+    sum(ces_combined$revision == 0, na.rm = TRUE), "\n")
+
+# 3. Explore revisions by decade
+ces_combined |>
+  mutate(decade = floor(year(date) / 10) * 10) |>
+  group_by(decade) |>
+  summarise(
+    mean_revision = mean(revision, na.rm = TRUE),
+    median_revision = median(revision, na.rm = TRUE),
+    sd_revision = sd(revision, na.rm = TRUE),
+    mean_abs_revision = mean(abs(revision), na.rm = TRUE),
+    n = n()
+  ) |>
+  print()
+
+# 4. Recent years focus (2020-2025)
+ces_combined |>
+  filter(year(date) >= 2020) |>
+  select(date, original, final, revision) |>
+  print()
+
+
+
+```
+
+**Our statistics:**
+
+Mean revision: 11.49\
+Median revision: 10\
+SD of revisions: 83.33\
+Min revision: -672\
+Max revision: 437\
+\
+**Percentage of positive vs negative revisions:**
+
+Positive revisions: 318\
+Negative revisions: 237\
+Zero revisions: 3
+
+#### **Visualizations**
+
+Let's take a look at our visualizations! They will explore revisions over time, distribution of revisions, absolute revisions over time, and revisions occuring in recent years.
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| warning: false
+#| message: false
+#| output-summary: "Show/hide results"
+#| code-summary: "Show visualizations from data exploration"
+# ===== TASK 3: DATA EXPLORATION =====
+# 5. VISUALIZATIONS
+
+# Plot 1: Revisions over time
+p1 <- ggplot(ces_combined, aes(x = date, y = revision)) +
+  geom_line(color = "steelblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "CES Revisions Over Time (1979-2025)",
+    subtitle = "Difference between final and initial employment estimates",
+    x = "Date",
+    y = "Revision (thousands of jobs)"
+  ) +
+  theme_minimal()
+
+print(p1)
+
+# Plot 2: Distribution of revisions
+p2 <- ggplot(ces_combined, aes(x = revision)) +
+  geom_histogram(bins = 50, fill = "steelblue", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red") +
+  labs(
+    title = "Distribution of CES Revisions",
+    x = "Revision (thousands of jobs)",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+print(p2)
+
+# Plot 3: Absolute revisions over time (magnitude)
+p3 <- ces_combined |>
+  mutate(abs_revision = abs(revision)) |>
+  ggplot(aes(x = date, y = abs_revision)) +
+  geom_point(alpha = 0.4, color = "darkred") +
+  geom_smooth(method = "loess", color = "blue") +
+  labs(
+    title = "Magnitude of CES Revisions Over Time",
+    subtitle = "Are revisions getting larger?",
+    x = "Date",
+    y = "Absolute Revision (thousands)"
+  ) +
+  theme_minimal()
+
+print(p3)
+
+# Plot 4: Recent years focus
+p4 <- ces_combined |>
+  filter(year(date) >= 2020) |>
+  ggplot(aes(x = date, y = revision)) +
+  geom_col(aes(fill = revision > 0)) +
+  scale_fill_manual(values = c("red", "green"), 
+                    labels = c("Negative", "Positive")) +
+  labs(
+    title = "CES Revisions: 2020-2025",
+    x = "Date",
+    y = "Revision (thousands)",
+    fill = "Direction"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(p4)
+```
+
+The exploratory analysis reveals that while CES revisions have always exhibited volatility, recent years (particularly 2020-2025) have experienced significantly larger revision magnitudes than historical norms, with the pandemic period showing unprecedented swings including a -600,000 job revision. Additionally, the 2020-2025 period demonstrates unusual directional clustering, with sustained patterns of upward revisions in 2021-2022 followed by predominantly downward revisions in later years, contrasting with the more balanced directional distribution observed in earlier decades.
+
+## Task 4: Statistical Inference
+
+While exploratory visualizations and summary statistics reveal compelling patterns in CES revision data, formal statistical inference is necessary to determine whether observed differences exceed what random variation alone might produce. In this section, we apply hypothesis testing using the infer package to rigorously evaluate claims about revision patterns, employing both t-tests for differences in mean revision magnitudes and proportion tests for directional bias.
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| warning: false
+#| message: false
+#| output-summary: "Show/hide results"
+#| code-summary: "Statistical Inference"
+# ===== TASK 4: STATISTICAL ANALYSIS & FACT CHECKING =====
+
+library(infer)
+
+# First, let's identify some testable claims about BLS revisions
+
+# Common political claims:
+# 1. "Revisions have been systematically negative under Biden"
+# 2. "Revisions are getting larger over time"
+# 3. "Recent revisions are unusually large compared to historical patterns"
+
+# Let's test these claims!
+
+# ----- CLAIM 1: Are revisions systematically negative? -----
+# Null hypothesis: Mean revision = 0
+# Alternative: Mean revision ≠ 0
+
+cat("\n========== TEST 1: Are revisions biased? ==========\n")
+
+# Traditional t-test
+t_test_result <- t.test(ces_combined$revision, mu = 0)
+print(t_test_result)
+
+# Using infer package (required by assignment)
+set.seed(9750)
+null_dist_mean <- ces_combined |>
+  specify(response = revision) |>
+  hypothesize(null = "point", mu = 0) |>
+  generate(reps = 10000, type = "bootstrap") |>
+  calculate(stat = "mean")
+
+# Calculate p-value
+obs_mean <- mean(ces_combined$revision, na.rm = TRUE)
+p_value_mean <- null_dist_mean |>
+  get_p_value(obs_stat = obs_mean, direction = "two-sided")
+
+cat("Observed mean revision:", obs_mean, "\n")
+cat("P-value:", p_value_mean$p_value, "\n")
+
+# Visualize
+null_dist_mean |>
+  visualize() +
+  shade_p_value(obs_stat = obs_mean, direction = "two-sided") +
+  labs(
+    title = "Null Distribution of Mean Revisions",
+    subtitle = "H0: Mean revision = 0",
+    x = "Simulated mean revision (thousands of jobs)",
+    y = "Number of simulations") +
+  coord_cartesian(xlim = c(min(null_dist_mean$stat), max(null_dist_mean$stat) + 5)) +
+  annotate("text",
+           x = obs_mean,
+           y = 2000,
+           label = "Observed mean",
+           angle = 90,
+           vjust = 1,      # pull label inside the plot
+           hjust = 1,      # right‑justify
+           color = "red",
+           size = 3.5)
+
+
+# ----- CLAIM 2: Are recent revisions more negative? -----
+# Compare Biden era (2021-2025) vs Trump era (2017-2020)
+
+cat("\n========== TEST 2: Biden vs Trump era revisions ==========\n")
+
+ces_political <- ces_combined |>
+  filter(year(date) >= 2017, year(date) <= 2025) |>
+  mutate(
+    era = case_when(
+      year(date) >= 2021 ~ "Biden",
+      year(date) >= 2017 ~ "Trump"
+    )
+  )
+
+# Traditional t-test
+t_test_era <- t.test(revision ~ era, data = ces_political)
+print(t_test_era)
+
+# Using infer
+set.seed(9750)
+null_dist_diff <- ces_political |>
+  specify(revision ~ era) |>
+  hypothesize(null = "independence") |>
+  generate(reps = 10000, type = "permute") |>
+  calculate(stat = "diff in means", order = c("Biden", "Trump"))
+
+obs_diff <- ces_political |>
+  specify(revision ~ era) |>
+  calculate(stat = "diff in means", order = c("Biden", "Trump"))
+
+p_value_diff <- null_dist_diff |>
+  get_p_value(obs_stat = obs_diff, direction = "two-sided")
+
+cat("Mean revision - Biden:", 
+    mean(ces_political$revision[ces_political$era == "Biden"], na.rm = TRUE), "\n")
+cat("Mean revision - Trump:", 
+    mean(ces_political$revision[ces_political$era == "Trump"], na.rm = TRUE), "\n")
+cat("Difference:", obs_diff$stat, "\n")
+cat("P-value:", p_value_diff$p_value, "\n")
+
+# Visualize
+null_dist_diff |>
+  visualize() +
+  shade_p_value(obs_stat = obs_diff, direction = "two-sided") +
+  labs(
+    title = "Null Distribution of Difference in Mean Revisions",
+    subtitle = "Biden era vs Trump era (H0: no difference)",
+    x = "Simulated difference in mean revisions (Biden − Trump)",
+    y = "Number of simulations"
+)
+  annotate("text", x = 30, y = 1500, 
+           label = "Red line: Observed difference\n(Biden - Trump = 24.79)",
+           hjust = 0, color = "black", size = 3.5)
+
+
+# ----- CLAIM 3: Proportion of negative revisions -----
+# Test if more than 50% of revisions are negative
+
+cat("\n========== TEST 3: Proportion of negative revisions ==========\n")
+
+ces_with_direction <- ces_combined |>
+  filter(!is.na(revision)) |>
+  mutate(negative = revision < 0)
+
+# Observed proportion
+obs_prop <- mean(ces_with_direction$negative)
+cat("Observed proportion negative:", obs_prop, "\n")
+
+# Proportion test (traditional)
+prop_test_result <- prop.test(
+  x = sum(ces_with_direction$negative),
+  n = nrow(ces_with_direction),
+  p = 0.5,
+  alternative = "two.sided"
+)
+print(prop_test_result)
+
+# Using infer
+set.seed(9750)
+null_dist_prop <- ces_with_direction |>
+  specify(response = negative, success = "TRUE") |>
+  hypothesize(null = "point", p = 0.5) |>
+  generate(reps = 10000, type = "draw") |>
+  calculate(stat = "prop")
+
+p_value_prop <- null_dist_prop |>
+  get_p_value(obs_stat = obs_prop, direction = "two-sided")
+
+cat("P-value:", p_value_prop$p_value, "\n")
+
+# Visualize
+null_dist_prop |>
+  visualize() +
+  shade_p_value(obs_stat = obs_prop, direction = "two-sided") +
+  labs(
+  title = "Null Distribution of Proportion Negative",
+  subtitle = "H0: Proportion negative = 0.5",
+  x = "Simulated proportion of negative revisions",
+  y = "Number of simulations") +
+  annotate("text", 
+           x = obs_prop, 
+           y = 2000,  # Adjust height based on your histogram
+           label = paste0("Observed: ", round(obs_prop, 3)),
+           angle = 90, 
+           vjust = -0.5,
+           color = "darkred",
+           size = 3.5)
+
+
+# ----- SUMMARY & INTERPRETATION -----
+cat("\n========== FACT CHECK SUMMARY ==========\n")
+cat("Test 1 - Overall bias: p =", p_value_mean$p_value, "\n")
+cat("Test 2 - Biden vs Trump: p =", p_value_diff$p_value, "\n")
+cat("Test 3 - Proportion negative: p =", p_value_prop$p_value, "\n")
+```
+
+While revisions in the Biden era averaged higher (+13.87) compared to the Trump era (-10.92), this 24.79-point difference is not statistically significant (p=0.29), meaning that it can easily be explained by random deviation. However, my Test 3 finding (p = 0.0004) has been consistently upward, contradicting claims of Biden-specific downward bias. The 95% confidence interval (38.3% to 46.7% negative) suggests the true proportion of negative revisions is significantly below 50%, meaning BLS preliminary estimates tend to undercount employment regardless of which party holds the White House. This pattern likely reflects methodological challenges in capturing net business formation in real-time rather than political manipulation.
+
+## Task 5: Fact Check of Claims about BLS
+
+Finally, we will synthesize the statistical evidence to measure two claims made in the eve of McEntarfer's firing. Let's explore who is telling the truth and who's pants are on fire!
+
+Claim #1: "**Bureau of Labor Statistics employment numbers “were rigged” when the agency revised them “down by almost 900,000 jobs” after the 2024 election" (Donald Trump)**
+
+Source: <https://www.politifact.com/factchecks/2025/aug/05/donald-trump/bls-firing-jobs-revision-election/>
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| warning: false
+#| message: false
+#| output-summary: "Show/hide results"
+#| code-summary: "Fact-check Claim #1"
+## Task 5: Fact Check Claims about BLS Revisions
+
+# CLAIM TO CHECK:
+# Donald Trump stated: "Bureau of Labor Statistics employment numbers 
+# 'were rigged' when the agency revised them 'down by almost 900,000 jobs' 
+# after the 2024 election"
+#
+# Source: https://www.politifact.com/factchecks/2025/aug/05/donald-trump/bls-firing-jobs-revision-election/
+
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# ===== KEY FACTS FROM POLITIFACT =====
+# 1. The 818,000 job revision was announced on August 21, 2024 
+#    (BEFORE the election, not after)
+# 2. This was part of a standard annual benchmarking process
+# 3. The final revision (Feb 2025) was actually 589,000, not 818,000
+# 4. Trump complained about this the DAY it was released (Aug 21, 2024)
+
+
+# ===== ANALYZE THE DATA WE HAVE =====
+
+# Filter to 2024 data to examine the revision pattern
+ces_2024 <- ces_combined %>%
+  filter(year(date) == 2024)
+
+cat("\n----- 2024 MONTHLY REVISIONS (in thousands) -----\n")
+print(ces_2024 %>% 
+  select(date, original, final, revision) %>%
+  arrange(date))
+
+# Calculate total revision for 2024
+total_2024_revision <- sum(ces_2024$revision, na.rm = TRUE)
+cat("\nTotal 2024 monthly revisions:", total_2024_revision, "thousand jobs\n")
+
+# ===== CONTEXT: HOW DO 2024 REVISIONS COMPARE HISTORICALLY? =====
+
+cat("\n----- HISTORICAL CONTEXT -----\n")
+
+# Annual revision totals
+annual_revisions <- ces_combined %>%
+  mutate(year = year(date)) %>%
+  group_by(year) %>%
+  summarise(
+    total_revision = sum(revision, na.rm = TRUE),
+    mean_revision = mean(revision, na.rm = TRUE),
+    abs_total_revision = sum(abs(revision), na.rm = TRUE),
+    n_months = n()
+  ) %>%
+  arrange(desc(abs_total_revision))
+
+cat("\nTop 10 years by absolute total revision:\n")
+print(head(annual_revisions, 10))
+
+# Where does 2024 rank?
+rank_2024 <- which(annual_revisions$year == 2024)
+cat("\n2024 ranks #", rank_2024, " out of ", nrow(annual_revisions), 
+    " years in absolute revision magnitude\n", sep = "")
+
+# ===== STATISTICAL TESTS =====
+
+cat("\n\n----- STATISTICAL ANALYSIS -----\n")
+
+# Test 1: Are 2024 revisions unusually negative compared to historical average?
+cat("\nTest 1: Are 2024 revisions significantly different from historical mean?\n")
+
+historical_mean <- mean(ces_combined$revision, na.rm = TRUE)
+revisions_2024 <- ces_2024$revision[!is.na(ces_2024$revision)]
+
+t_test_2024 <- t.test(revisions_2024, mu = historical_mean)
+print(t_test_2024)
+
+cat("\n2024 mean revision:", mean(revisions_2024), "\n")
+cat("Historical mean revision:", historical_mean, "\n")
+cat("Difference:", mean(revisions_2024) - historical_mean, "\n")
+
+# Test 2: Are 2024 revisions more negative than recent years (2015-2023)?
+cat("\n\nTest 2: 2024 vs Recent Years (2015-2023)\n")
+
+recent_years <- ces_combined %>%
+  filter(year(date) >= 2015, year(date) <= 2023) %>%
+  pull(revision)
+
+t_test_recent <- t.test(revisions_2024, recent_years)
+print(t_test_recent)
+
+cat("\n2024 mean:", mean(revisions_2024), "\n")
+cat("2015-2023 mean:", mean(recent_years, na.rm = TRUE), "\n")
+
+# ===== VISUALIZATIONS =====
+
+# Plot 1: 2024 in historical context
+p1 <- ces_combined %>%
+  mutate(year = year(date),
+         highlight = ifelse(year == 2024, "2024", "Other years")) %>%
+  ggplot(aes(x = date, y = revision, color = highlight, alpha = highlight)) +
+  geom_line() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_color_manual(values = c("2024" = "red", "Other years" = "gray50")) +
+  scale_alpha_manual(values = c("2024" = 1, "Other years" = 0.5)) +
+  labs(
+    title = "BLS Employment Revisions: 2024 in Historical Context",
+    subtitle = "Trump claimed revisions were 'rigged' in 2024",
+    x = "Date",
+    y = "Revision (thousands of jobs)",
+    color = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(p1)
+
+# Plot 2: Monthly revisions in 2024 with election date marked
+election_date <- as.Date("2024-11-05")
+announcement_date <- as.Date("2024-08-21")
+
+p2 <- ces_2024 %>%
+  ggplot(aes(x = date, y = revision)) +
+  geom_col(aes(fill = revision < 0)) +
+  geom_vline(xintercept = announcement_date, 
+             linetype = "dashed", color = "blue", linewidth = 1) +
+  geom_vline(xintercept = election_date, 
+             linetype = "dashed", color = "red", linewidth = 1) +
+  annotate("text", x = announcement_date, y = max(ces_2024$revision, na.rm = TRUE), 
+           label = "818K revision\nannounced\n(Aug 21)", 
+           hjust = 1.1, color = "blue", size = 3) +
+  annotate("text", x = election_date, y = max(ces_2024$revision, na.rm = TRUE), 
+           label = "Election\n(Nov 5)", 
+           hjust = -0.1, color = "red", size = 3) +
+  scale_fill_manual(values = c("FALSE" = "green", "TRUE" = "red"),
+                    labels = c("Positive", "Negative")) +
+  labs(
+    title = "2024 Monthly BLS Revisions: Timeline Check",
+    subtitle = "Trump claimed revisions came AFTER election - they came BEFORE",
+    x = "Month",
+    y = "Revision (thousands of jobs)",
+    fill = "Direction"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(p2)
+
+# Plot 3: Distribution comparison
+p3 <- ces_combined %>%
+  mutate(period = case_when(
+    year(date) == 2024 ~ "2024",
+    year(date) >= 2015 & year(date) <= 2023 ~ "2015-2023",
+    TRUE ~ "Before 2015"
+  )) %>%
+  filter(period != "Before 2015") %>%
+  ggplot(aes(x = revision, fill = period)) +
+  geom_density(alpha = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  scale_fill_manual(values = c("2024" = "red", "2015-2023" = "steelblue")) +
+  labs(
+    title = "Distribution of Revisions: 2024 vs Recent Years",
+    subtitle = "Is 2024 unusually negative?",
+    x = "Revision (thousands of jobs)",
+    y = "Density",
+    fill = "Period"
+  ) +
+  theme_minimal()
+
+print(p3)
+
+```
+
+EVIDENCE FROM OUR ANALYSIS:
+
+1.  **TIMELINE:** The 818,000 job revision was announced August 21, 2024
+
+    \- This was 76 days BEFORE the November 5 election, Trump himself complained about it on August 21
+
+<!-- -->
+
+2.  **MAGNITUDE:** Trump said 'almost 900,000'
+
+    \- Preliminary figure: 818,000
+
+    \- Final figure (Feb 2025): 589,000 (even smaller)
+
+<!-- -->
+
+3.  **CONTEXT:** Is 2024 unusual?
+
+    \- 2024 total revision: -241 thousand jobs
+
+    \- Historical mean: 11.5 thousand jobs per month
+
+    \- P-value (2024 vs history): 0.0715
+
+    \- Conclusion: 2024 revisions NOT statistically unusual
+
+4.  **PROCESS:** Was this 'rigging'?
+
+    \- This is a standard annual benchmarking process
+
+    \- BLS has used this methodology for years, the revision used more accurate state unemployment insurance data
+
+    \- Former BLS commissioner (Trump-appointed) said rigging is 'not possible, and not possible by design'
+
+5.  **POLITICAL IMPACT:** - The revision was announced at the Democratic National Convention, it was BAD news for the Harris campaign, if anything, the timing hurt Democrats, not Republicans
+
+6.  **CONCLUSION:** Trump's claim fails on multiple counts:
+
+    \- Wrong timeline (revision was BEFORE, not AFTER election)
+
+    \- Wrong magnitude (589K final, not 900K)
+
+    \- 2024 revisions not statistically unusual in historical context
+
+    \- Revision was actually politically damaging to Democrats
+
+    VERDICT: **PANTS ON FIRE (FALSE)**
+
+**Preface:** I had tried to look for articles on Politifact highlighting the firing of Dr. McEntarfer from the perspective of other politicians. However, I could only find a single article from the perspective of Donald Trump, so for this specific case I will be using the claim of a fictional politician.
+
+Claim #2 (FICTIONAL): **The BLS has consistently revised job numbers DOWN for the past 5 years. This proves a systematic bias in their initial estimates. Over 75% of all revisions since 2020 have been negative, which is statistically impossible if the process was truly unbiased. (Melissa Hartford)**
+
+```{r}
+#| code-fold: true
+#| output-fold: true
+#| warning: false
+#| message: false
+#| output-summary: "Show/hide results"
+#| code-summary: "Fact-check Claim #2"
+#THIS IS A MADE UP POLITICIAN
+# ============================================================
+# CLAIM 2: SENATOR MELISSA HARTFORD (FICTIONAL)
+# ============================================================
+
+#Stats are from Task 2
+# Filter to 2020-2025
+recent_data <- ces_combined %>%
+  filter(year(date) >= 2020, year(date) <= 2025) %>%
+  filter(!is.na(revision))
+
+# STATISTIC 1: Mean revision for 2020-2025
+mean_revision_recent <- mean(recent_data$revision, na.rm = TRUE)
+cat("STATISTIC 1 - Mean revision (2020-2025):", 
+    round(mean_revision_recent, 2), "thousand jobs\n")
+
+# STATISTIC 2: Median revision for 2020-2025
+median_revision_recent <- median(recent_data$revision, na.rm = TRUE)
+cat("STATISTIC 2 - Median revision (2020-2025):", 
+    round(median_revision_recent, 2), "thousand jobs\n")
+
+# STATISTIC 3: Standard deviation of revisions
+sd_revision_recent <- sd(recent_data$revision, na.rm = TRUE)
+cat("STATISTIC 3 - SD of revisions (2020-2025):", 
+    round(sd_revision_recent, 2), "thousand jobs\n")
+
+# STATISTIC 4: Mean absolute revision (magnitude)
+mean_abs_revision <- mean(abs(recent_data$revision), na.rm = TRUE)
+cat("STATISTIC 4 - Mean absolute revision (2020-2025):", 
+    round(mean_abs_revision, 2), "thousand jobs\n")
+
+cat("\nInterpretation:\n")
+if (mean_revision_recent < 0) {
+  cat("- Mean is negative, suggesting downward bias on average\n")
+} else {
+  cat("- Mean is positive, suggesting upward bias on average\n")
+}
+if (median_revision_recent < 0) {
+  cat("- Median is negative, most revisions are downward\n")
+} else {
+  cat("- Median is positive, most revisions are upward\n")
+}
+
+cat("\n----- Analysis of Revision Direction -----\n")
+
+# Count positive vs negative
+n_negative <- sum(recent_data$revision < 0)
+n_positive <- sum(recent_data$revision > 0)
+n_zero <- sum(recent_data$revision == 0)
+n_total <- nrow(recent_data)
+
+pct_negative <- n_negative / n_total * 100
+
+cat("\nRevisions 2020-2025:\n")
+cat("Negative revisions:", n_negative, "(", round(pct_negative, 1), "%)\n")
+cat("Positive revisions:", n_positive, "(", round(n_positive/n_total*100, 1), "%)\n")
+cat("Zero revisions:", n_zero, "(", round(n_zero/n_total*100, 1), "%)\n")
+cat("Total:", n_total, "\n")
+
+cat("\nSenator's claim: >75% negative\n")
+cat("Reality:", round(pct_negative, 1), "% negative\n")
+
+if (pct_negative > 75) {
+  cat("Claim is TRUE on the percentage\n")
+} else {
+  cat("Claim is FALSE - percentage is below 75%\n")
+}
+
+# Statistical test: Is this evidence of bias?
+# Null hypothesis: Proportion of negative = 0.5 (unbiased)
+# Alternative: Proportion ≠ 0.5
+
+cat("\n----- Statistical Test: Is there systematic bias? -----\n")
+cat("H0: Proportion of negative revisions = 0.5 (unbiased process)\n")
+cat("HA: Proportion of negative revisions ≠ 0.5 (biased process)\n\n")
+
+# Traditional proportion test
+prop_test <- prop.test(
+  x = n_negative,
+  n = n_total,
+  p = 0.5,
+  alternative = "two.sided"
+)
+
+cat("Observed proportion negative:", round(n_negative/n_total, 4), "\n")
+cat("Expected under null (unbiased):", 0.5, "\n")
+cat("P-value:", round(prop_test$p.value, 4), "\n")
+cat("95% CI: [", round(prop_test$conf.int[1], 3), ",", 
+    round(prop_test$conf.int[2], 3), "]\n")
+
+if (prop_test$p.value < 0.05) {
+  cat("\nConclusion: Evidence of systematic bias (p < 0.05)\n")
+  cat("The proportion is significantly different from 50%\n")
+} else {
+  cat("\nConclusion: NO evidence of systematic bias (p > 0.05)\n")
+  cat("The proportion is consistent with random chance\n")
+}
+
+# Using infer package for visualization
+set.seed(9750)
+null_dist_prop <- recent_data %>%
+  mutate(is_negative = revision < 0) %>%
+  specify(response = is_negative, success = "TRUE") %>%
+  hypothesize(null = "point", p = 0.5) %>%
+  generate(reps = 10000, type = "draw") %>%
+  calculate(stat = "prop")
+
+obs_prop <- n_negative / n_total
+
+p_value_infer <- null_dist_prop %>%
+  get_p_value(obs_stat = obs_prop, direction = "two-sided")
+
+cat("\nUsing simulation (infer package):\n")
+cat("P-value:", p_value_infer$p_value, "\n")
+
+# (Plot 1)Visualization of null distribution
+cat("PLOT 1: Visualization of null distribution\n")
+p2 <- null_dist_prop %>%
+  visualize() +
+  shade_p_value(obs_stat = obs_prop, direction = "two-sided") +
+  geom_vline(xintercept = 0.75, linetype = "dashed", color = "red") +
+  annotate("text", x = 0.75, y = Inf, 
+           label = "Senator's\nclaim: 75%", 
+           vjust = 1.5, hjust = -0.1, color = "red", size = 3) +
+  labs(
+    title = "Null Distribution of Proportion Negative Revisions",
+    subtitle = "H0: Proportion = 0.5 (unbiased process)",
+    x = "Proportion of Negative Revisions",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+print(p2)
+
+#Visualizations are based on data from Task 3
+
+# PLOT 2 (from Task 3): Revisions over time, highlighting 2020-2025
+cat("PLOT 2: Revisions over time (highlighting recent period)\n")
+p_task3_1 <- ces_combined %>%
+  mutate(period = ifelse(year(date) >= 2020, "2020-2025", "Before 2020")) %>%
+  ggplot(aes(x = date, y = revision, color = period, alpha = period)) +
+  geom_line(linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  scale_color_manual(values = c("2020-2025" = "red", "Before 2020" = "gray50")) +
+  scale_alpha_manual(values = c("2020-2025" = 1, "Before 2020" = 0.4)) +
+  labs(
+    title = "CES Revisions Over Time: Is 2020-2025 Different?",
+    subtitle = "Senator claims consistent downward bias since 2020",
+    x = "Date",
+    y = "Revision (thousands of jobs)",
+    color = "Period",
+    alpha = "Period"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(p_task3_1)
+
+# PLOT 3 (from Task 3): Distribution of revisions
+cat("\nPLOT 3: Distribution comparison (2020-2025 vs Historical)\n")
+p_task3_2 <- ces_combined %>%
+  mutate(period = ifelse(year(date) >= 2020, "2020-2025", "Before 2020")) %>%
+  filter(!is.na(revision)) %>%
+  ggplot(aes(x = revision, fill = period)) +
+  geom_histogram(bins = 30, alpha = 0.6, position = "identity") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black", linewidth = 1) +
+  geom_vline(xintercept = mean_revision_recent, 
+             linetype = "dashed", color = "red", linewidth = 1) +
+  annotate("text", x = mean_revision_recent, y = Inf, 
+           label = paste0("Recent mean:\n", round(mean_revision_recent, 1)), 
+           vjust = 1.5, hjust = ifelse(mean_revision_recent < 0, 1.1, -0.1), 
+           color = "red", size = 3) +
+  scale_fill_manual(values = c("2020-2025" = "red", "Before 2020" = "steelblue")) +
+  labs(
+    title = "Distribution of CES Revisions: Recent vs Historical",
+    subtitle = "Are recent revisions more negative?",
+    x = "Revision (thousands of jobs)",
+    y = "Count",
+    fill = "Period"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(p_task3_2)
+
+# Additional context: Historical comparison
+cat("\n----- Historical Context (1979-2019) -----\n")
+
+historical_data <- ces_combined %>%
+  filter(year(date) < 2020) %>%
+  filter(!is.na(revision))
+
+hist_negative <- sum(historical_data$revision < 0)
+hist_total <- nrow(historical_data)
+hist_pct <- hist_negative / hist_total * 100
+
+cat("Historical negative revisions:", hist_negative, 
+    "(", round(hist_pct, 1), "%)\n")
+cat("Recent (2020-2025) negative:", n_negative, 
+    "(", round(pct_negative, 1), "%)\n")
+
+# Test if recent years different from historical
+test_periods <- ces_combined %>%
+  filter(!is.na(revision)) %>%
+  mutate(
+    period = ifelse(year(date) >= 2020, "Recent", "Historical"),
+    is_negative = revision < 0
+  )
+
+prop_test_periods <- prop.test(
+  x = c(n_negative, hist_negative),
+  n = c(n_total, hist_total)
+)
+
+cat("\nTest: Is recent period different from historical?\n")
+cat("P-value:", round(prop_test_periods$p.value, 4), "\n")
+
+if (prop_test_periods$p.value < 0.05) {
+  cat("Conclusion: Recent period IS significantly different\n")
+} else {
+  cat("Conclusion: Recent period is NOT significantly different\n")
+  cat("from historical patterns\n")
+}
+
+cat("\n----- VERDICT: CLAIM 2 -----\n")
+
+if (pct_negative > 75) {
+  cat("PARTIALLY TRUE but MISLEADING\n\n")
+} else {
+  cat("MOSTLY FALSE\n\n")
+}
+
+cat("Evidence:\n")
+cat("1. PERCENTAGE: Senator claimed >75% negative\n")
+cat("   Reality:", round(pct_negative, 1), "% negative\n")
+if (pct_negative > 75) {
+  cat("   ✓ Claim is technically correct\n")
+} else {
+  cat("   ✗ Claim is incorrect\n")
+}
+
+cat("\n2. STATISTICS FROM TASK 2 DATA:\n")
+cat("   - Mean revision:", round(mean_revision_recent, 2), "thousand\n")
+cat("   - Median revision:", round(median_revision_recent, 2), "thousand\n")
+cat("   - SD of revisions:", round(sd_revision_recent, 2), "thousand\n")
+cat("   - Mean absolute revision:", round(mean_abs_revision, 2), "thousand\n")
+if (mean_revision_recent < 0 && median_revision_recent < 0) {
+  cat("   ✓ Both mean and median are negative\n")
+} else {
+  cat("   Note: Central tendency statistics\n")
+}
+
+cat("\n3. HYPOTHESIS TEST: P-value =", round(prop_test$p.value, 4), "\n")
+if (prop_test$p.value < 0.05) {
+  cat("   ✓ Evidence of bias exists (p < 0.05), but...\n")
+} else {
+  cat("   ✗ NO evidence of systematic bias\n")
+}
+
+
+
+```
+
+EVIDENCE FROM OUR ANALYSIS:
+
+1.  **PERCENTAGE:**
+
+    Senator claimed \>75% negative
+
+    Reality: 53 % negative ✗ Claim is incorrect
+
+<!-- -->
+
+2.  **STATISTICS FROM TASK 2 DATA:**
+
+    \- Mean revision: 0.45 thousand
+
+    \- Median revision: -7.5 thousand
+
+    \- SD of revisions: 142.44 thousand
+
+    \- Mean absolute revision: 86.94 thousand
+
+3.  **HYPOTHESIS TEST: P-value = 0.7119**
+
+    NO evidence of systematic bias
+
+4.  **HISTORICAL COMPARISON: Recent vs Historical p = 0.0863**
+
+    \- Recent period consistent with historical patterns
+
+5.  **VISUALIZATIONS FROM TASK 3:**
+
+    \- Time series plot shows context of recent revisions
+
+    \- Distribution plot compares recent vs historical patterns
+
+6.  **CONTEXT MATTERS:**
+
+    \- Sample size: n = 66 months
+
+    \- Includes COVID-19 period with unusual economic volatility
+
+    \- Revisions can be negative for legitimate reasons (e.g., more accurate data sources become available)
+
+    \- Direction of revision doesn't indicate 'rigging'
+
+7.  **'STATISTICALLY IMPOSSIBLE' CLAIM:**
+
+    \- This is FALSE: The observed proportion is consistent with random variation around 50%
+
+VERDICT: **MOSTLY FALSE**
+
+**Summary:** This analysis of over four decades of BLS employment data reveals that claims of systemic bias or political manipulation in jobs revisions are not supported by statistical evidence. Trump's assertion that numbers were "rigged" and revised down "almost 900,000 jobs" after the 2024 election fails on basic facts-the revision was announced 76 days before the election, and my hypothesis tests show 2024 revisions were not statistically unusual compared to historical patterns (p=0.0715). Most significantly, the data demonstrates, that BLS preliminary estimates have actually exhibited consistent upward bias over the entire 1979-2025 period, with only 43% of revisions being negative (p=0.0004), directly contradicting claims of politically motivated underestimation and suggesting the observed volatility reflects legitimate methodological challenges rather than manipulation.
