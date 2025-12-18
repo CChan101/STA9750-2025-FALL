@@ -317,22 +317,3 @@ At the same time, this analysis faces important limitations inherent in state-le
 These data constraints mean that the maps in this report are best interpreted as showing broad spatial regimes of higher and lower risk, not precise estimates of true obesity burden in every location. Factors such as rural–urban differences, neighborhood food environments, transportation infrastructure, and local economic conditions—known to influence obesity risk—cannot be directly incorporated when the unit of analysis is an entire state. For a “client” audience, an honest discussion of these limitations is essential: the observed regional concentration is real and policy-relevant, but the exact percentages and the degree of within-state variation should be treated with caution.
 
 Future work for this project could deepen and refine these findings along several dimensions. One natural extension is to move from states to county-level or metropolitan-area estimates, using CDC’s model-based obesity data or county health ranking datasets to identify sub-state hotspots within regions like the South or lower-obesity states in the West. Another direction is to integrate additional variables from the BRFSS—such as physical activity, diet, income, and education—into a multivariable modeling framework that explicitly tests how much of the regional clustering can be explained by differences in sociodemographic composition and health behaviors. Finally, incorporating emerging bias-corrected state estimates of obesity and severe obesity would allow the team to assess whether regional patterns remain as strong once self-report bias is reduced, and to better quantify the true burden in the highest-risk regions for clinical and policy planning.
-
-```{r}
-#Count the # of words in my report
-count_words <- function(url){
-    library(rvest)
-    library(stringi)
-    
-    # Note that this includes code inside an inline block, but omits
-    # full-sized code blocks
-    read_html(url) |>
-        html_elements("main p") |>
-        html_text() |>
-        stri_count_words() |>
-        sum()
-}
-
-#count_words("http://localhost:4994/STA_9750_Individual_Report.html")
-
-```
